@@ -14,5 +14,5 @@ This should do everything you need.
 
 ### Keith's notes
 
-Changed to work on an Ubuntu host and to create a 32bit image.
+Changed to work on an Ubuntu host, to create a 32bit image, and localized for the US.
 
