@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Dependencies: squashfs-tools genisoimage
+
 # make sure we have dependencies 
 hash mkisofs 2>/dev/null || { echo >&2 "ERROR: mkisofs not found.  Aborting."; exit 1; }
 
@@ -8,9 +10,9 @@ set -o errexit
 #set -o xtrace
 
 # Configurations
-BOX="ubuntu-precise-64"
-ISO_URL="http://releases.ubuntu.com/precise/ubuntu-12.04-alternate-amd64.iso"
-ISO_MD5="9fcc322536575dda5879c279f0b142d7"
+BOX="ubuntu-precise-32"
+ISO_URL="http://releases.ubuntu.com/precise/ubuntu-12.04-alternate-i386.iso"
+ISO_MD5="bcee4c03b704a9b62988505b7d8f3069"
 
 # location, location, location
 FOLDER_BASE=`pwd`
@@ -18,6 +20,7 @@ FOLDER_ISO="${FOLDER_BASE}/iso"
 FOLDER_BUILD="${FOLDER_BASE}/build"
 FOLDER_VBOX="${FOLDER_BUILD}/vbox"
 FOLDER_ISO_CUSTOM="${FOLDER_BUILD}/iso/custom"
+FOLDER_ISO_MOUNT="${FOLDER_BUILD}/iso/mnt"
 FOLDER_ISO_INITRD="${FOLDER_BUILD}/iso/initrd"
 
 # start with a clean slate
@@ -33,11 +36,12 @@ mkdir -p "${FOLDER_ISO}"
 mkdir -p "${FOLDER_BUILD}"
 mkdir -p "${FOLDER_VBOX}"
 mkdir -p "${FOLDER_ISO_CUSTOM}"
+mkdir -p "${FOLDER_ISO_MOUNT}"
 mkdir -p "${FOLDER_ISO_INITRD}"
 
 ISO_FILENAME="${FOLDER_ISO}/`basename ${ISO_URL}`"
 INITRD_FILENAME="${FOLDER_ISO}/initrd.gz"
-ISO_GUESTADDITIONS="/Applications/VirtualBox.app/Contents/MacOS/VBoxGuestAdditions.iso"
+ISO_GUESTADDITIONS="/usr/share/virtualbox/VBoxGuestAdditions.iso"
 
 # download the installation disk if you haven't already or it is corrupted somehow
 echo "Downloading `basename ${ISO_URL}` ..."
@@ -56,8 +60,15 @@ fi
 echo "Creating Custom ISO"
 if [ ! -e "${FOLDER_ISO}/custom.iso" ]; then
 
-  echo "Untarring downloaded ISO ..."
-  tar -C "${FOLDER_ISO_CUSTOM}" -xf "${ISO_FILENAME}"
+  echo "Mounting downloaded ISO ..."
+  sudo mount -o loop "${ISO_FILENAME}" "${FOLDER_ISO_MOUNT}"
+
+  echo "Extracting downloaded ISO ..."
+  rsync --exclude=/casper/filesystem.squashfs -a "${FOLDER_ISO_MOUNT}/" "${FOLDER_ISO_CUSTOM}"
+
+  echo "Unmounting downloaded ISO ..."
+  sudo umount "${FOLDER_ISO_MOUNT}"
+  rmdir "${FOLDER_ISO_MOUNT}"
 
   # backup initrd.gz
   echo "Backing up current init.rd ..."
@@ -67,7 +78,7 @@ if [ ! -e "${FOLDER_ISO}/custom.iso" ]; then
   # stick in our new initrd.gz
   echo "Installing new initrd.gz ..."
   cd "${FOLDER_ISO_INITRD}"
-  gunzip -c "${FOLDER_ISO_CUSTOM}/install/initrd.gz.org" | cpio -id
+  sudo gunzip -c "${FOLDER_ISO_CUSTOM}/install/initrd.gz.org" | cpio -id
   cd "${FOLDER_BASE}"
   cp preseed.cfg "${FOLDER_ISO_INITRD}/preseed.cfg"
   cd "${FOLDER_ISO_INITRD}"
@@ -116,7 +127,7 @@ if ! VBoxManage showvminfo "${BOX}" >/dev/null 2>/dev/null; then
     --boot3 none \
     --boot4 none \
     --vram 12 \
-    --pae off \
+    --pae on \
     --rtcuseutc on
 
   VBoxManage storagectl "${BOX}" \
